@@ -2,441 +2,255 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>لوحة المبيعات الاحترافية</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام متابعة المبيعات الذكي</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     fontFamily: { sans: ['Cairo', 'sans-serif'] },
-                    colors: { 
-                        brand: {
-                            DEFAULT: '#2563eb', // أزرق ملكي
-                            dark: '#1e40af',
-                            light: '#dbeafe'
-                        },
-                        accent: '#f59e0b' // برتقالي للتنبيهات
-                    },
-                    boxShadow: {
-                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-                        'card': '0 0 0 1px rgba(0,0,0,0.03), 0 2px 8px rgba(0,0,0,0.04)'
-                    }
+                    colors: { primary: '#099999' }
                 }
             }
         }
     </script>
-
     <style>
-        body { background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
-        /* شريط التمرير المخصص */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        
-        .glass-header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        .loading-shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
         }
-        
-        .stat-card { transition: transform 0.2s; }
-        .stat-card:active { transform: scale(0.98); }
-
-        /* أنيميشن التحميل */
-        .loader {
-            width: 48px; height: 48px;
-            border: 5px solid #2563eb;
-            border-bottom-color: transparent;
-            border-radius: 50%;
-            display: inline-block;
-            box-sizing: border-box;
-            animation: rotation 1s linear infinite;
-        }
-        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     </style>
 </head>
-<body class="text-slate-800 antialiased pb-20 md:pb-10">
+<body class="bg-gray-50 text-slate-800">
 
-    <div id="loadingScreen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white transition-opacity duration-500">
-        <span class="loader mb-4"></span>
-        <h2 class="text-xl font-bold text-slate-700">جاري الاتصال بـ GitHub...</h2>
-        <p class="text-sm text-slate-400 mt-2">يتم تحليل ملف المبيعات</p>
+    <div id="loader" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
+        <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <p class="mt-4 font-bold text-primary">جاري جلب بيانات المندوبين...</p>
+        <p class="text-xs text-gray-400 mt-2">Connecting to GitHub via jsDelivr</p>
     </div>
 
-    <nav class="glass-header sticky top-0 z-40 px-4 py-3">
-        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-            <div class="flex items-center gap-3 w-full md:w-auto">
-                <div class="w-10 h-10 bg-brand rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                </div>
-                <div>
-                    <h1 class="font-bold text-lg leading-tight">لوحة التحكم</h1>
-                    <p class="text-xs text-slate-500">Sales Dashboard</p>
-                </div>
+    <nav class="bg-white shadow-sm sticky top-0 z-40 p-4 border-b">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="p-2 bg-primary rounded-lg text-white font-bold">BG</div>
+                <h1 class="text-xl font-extrabold text-primary">لوحة مبيعات باسل غانم</h1>
             </div>
-
-            <div class="flex flex-col sm:flex-row w-full md:w-auto gap-3">
-                <div class="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
-                    <button onclick="switchPeriod('MTD')" id="btn-mtd" class="flex-1 px-6 py-2 rounded-lg text-sm font-bold transition-all shadow-sm bg-white text-brand">
-                        MTD (شهري)
-                    </button>
-                    <button onclick="switchPeriod('YTD')" id="btn-ytd" class="flex-1 px-6 py-2 rounded-lg text-sm font-bold text-slate-500 transition-all hover:text-slate-700">
-                        YTD (سنوي)
-                    </button>
-                </div>
-
-                <div class="relative w-full sm:w-64">
-                    <select id="repSelect" onchange="updateDashboard()" class="w-full appearance-none bg-white border border-slate-200 text-slate-700 py-2.5 px-4 pr-8 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/20 font-semibold shadow-sm">
-                        <option value="">جاري التحميل...</option>
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center px-3 text-slate-500">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
+            <div class="flex gap-2 w-full md:w-auto">
+                <select id="repSelector" onchange="renderUI()" class="flex-1 md:w-64 p-2 border rounded-lg bg-gray-50 font-bold focus:ring-2 focus:ring-primary outline-none"></select>
+                <div class="flex bg-gray-200 p-1 rounded-lg">
+                    <button onclick="setPeriod('MTD')" id="btn-mtd" class="px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-primary">MTD</button>
+                    <button onclick="setPeriod('YTD')" id="btn-ytd" class="px-4 py-1 rounded-md text-sm font-bold text-gray-500">YTD</button>
                 </div>
             </div>
         </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        
-        <div class="relative overflow-hidden bg-gradient-to-br from-brand to-blue-700 rounded-2xl shadow-xl text-white p-6 md:p-10">
-            <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                    <span id="periodBadge" class="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-medium backdrop-blur-sm mb-3">تقرير الشهر الحالي</span>
-                    <h2 class="text-3xl md:text-4xl font-bold tracking-tight" id="headerName">--</h2>
-                    <p class="text-blue-100 mt-1 flex items-center gap-2">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                        <span id="topAreaText">--</span>
-                    </p>
-                </div>
-                <div class="bg-white/10 p-4 rounded-xl backdrop-blur-md border border-white/10 min-w-[180px]">
-                    <p class="text-sm text-blue-200">إجمالي المبيعات</p>
-                    <p class="text-3xl font-bold font-mono mt-1" id="totalSales">0</p>
-                </div>
+    <main class="max-w-7xl mx-auto p-4 space-y-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border-r-4 border-primary">
+                <p class="text-gray-400 text-xs font-bold">صافي المبيعات</p>
+                <p id="stat-sales" class="text-xl font-black text-slate-700">0</p>
             </div>
-            
-            <div class="absolute top-0 right-0 -mt-20 -mr-20 w-80 h-80 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
-            <div class="absolute bottom-0 left-0 -mb-20 -ml-20 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30"></div>
-        </div>
-
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="stat-card bg-white p-5 rounded-2xl shadow-card border-b-4 border-emerald-500">
-                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">صافي الكمية</p>
-                <p class="text-2xl font-bold text-emerald-600 mt-1" id="totalQty">0</p>
+            <div class="bg-white p-4 rounded-xl shadow-sm border-r-4 border-orange-500">
+                <p class="text-gray-400 text-xs font-bold">الكمية (Net Goods)</p>
+                <p id="stat-qty" class="text-xl font-black text-slate-700">0</p>
             </div>
-            <div class="stat-card bg-white p-5 rounded-2xl shadow-card border-b-4 border-amber-500">
-                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">عدد الفواتير</p>
-                <p class="text-2xl font-bold text-amber-600 mt-1" id="invoiceCount">0</p>
+            <div class="bg-white p-4 rounded-xl shadow-sm border-r-4 border-blue-500">
+                <p class="text-gray-400 text-xs font-bold">أعلى منطقة</p>
+                <p id="stat-area" class="text-sm font-black text-slate-700 truncate">--</p>
             </div>
-            <div class="stat-card bg-white p-5 rounded-2xl shadow-card border-b-4 border-indigo-500 col-span-2 md:col-span-2">
-                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">أعلى عميل شراءً</p>
-                <div class="flex justify-between items-end mt-1">
-                    <p class="text-lg font-bold text-slate-800 truncate w-2/3" id="topCustomer">--</p>
-                    <p class="text-sm font-bold text-indigo-600" id="topCustomerVal">0</p>
-                </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border-r-4 border-purple-500">
+                <p class="text-gray-400 text-xs font-bold">أعلى عميل</p>
+                <p id="stat-cust" class="text-sm font-black text-slate-700 truncate">--</p>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="bg-white p-6 rounded-2xl shadow-soft lg:col-span-2">
-                <h3 class="font-bold text-lg mb-6 flex items-center gap-2">
-                    <span class="w-1 h-6 bg-brand rounded-full"></span>
-                    تحليل الأداء اليومي
-                </h3>
-                <div class="relative h-64 w-full">
-                    <canvas id="salesChart"></canvas>
-                </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm h-80">
+                <h3 class="font-bold text-sm mb-4">الأداء الزمني</h3>
+                <canvas id="mainChart"></canvas>
             </div>
-
-            <div class="bg-white p-6 rounded-2xl shadow-soft">
-                <h3 class="font-bold text-lg mb-6 flex items-center gap-2">
-                    <span class="w-1 h-6 bg-accent rounded-full"></span>
-                    توزيع المناطق
-                </h3>
-                <div class="relative h-64 w-full flex justify-center">
-                    <canvas id="areaChart"></canvas>
-                </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm h-80">
+                <h3 class="font-bold text-sm mb-4">توزيع المناطق</h3>
+                <canvas id="pieChart"></canvas>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-white rounded-2xl shadow-soft overflow-hidden flex flex-col max-h-[500px]">
-                <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                    <h3 class="font-bold text-slate-700">الأصناف الأكثر مبيعاً</h3>
-                </div>
-                <div class="overflow-y-auto p-0">
-                    <table class="w-full text-sm text-right">
-                        <thead class="bg-slate-50 text-slate-500 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-3 font-semibold">الصنف</th>
-                                <th class="px-4 py-3 font-semibold text-center">الكمية</th>
-                                <th class="px-4 py-3 font-semibold text-left">القيمة</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100" id="productsTable"></tbody>
-                    </table>
-                </div>
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 class="font-bold">تفاصيل الأصناف</h3>
+                <span id="rowCount" class="text-xs bg-primary text-white px-2 py-1 rounded-full">0 صنف</span>
             </div>
-
-            <div class="bg-white rounded-2xl shadow-soft overflow-hidden flex flex-col max-h-[500px]">
-                <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                    <h3 class="font-bold text-slate-700">قائمة العملاء</h3>
-                </div>
-                <div class="overflow-y-auto p-0">
-                    <table class="w-full text-sm text-right">
-                        <thead class="bg-slate-50 text-slate-500 sticky top-0">
-                            <tr>
-                                <th class="px-4 py-3 font-semibold">العميل</th>
-                                <th class="px-4 py-3 font-semibold text-left">المبيعات</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100" id="customersTable"></tbody>
-                    </table>
-                </div>
+            <div class="overflow-x-auto max-h-96">
+                <table class="w-full text-right text-sm">
+                    <thead class="bg-gray-100 sticky top-0">
+                        <tr>
+                            <th class="p-3">اسم الصنف (Item Name)</th>
+                            <th class="p-3 text-center">الكمية</th>
+                            <th class="p-3 text-center">المبيعات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y"></tbody>
+                </table>
             </div>
         </div>
-
     </main>
 
     <script>
-        // رابط الملف المباشر (Raw)
-// استخدام رابط CDN لتجاوز مشاكل الحماية وتسريع التحميل
-    const EXCEL_URL = 'https://cdn.jsdelivr.net/gh/BaselGhanem/Sales@main/Daily%20Sales%20Report.xlsx';
-        // أسماء الأعمدة في ملف الإكسل
-        const COLS = {
-            REP: "Salesman",
-            DATE: "Date",
-            SALES: "Sales",
-            QTY: "Net Goods",
-            AREA: "Area Name",
-            CUST: "Cust Name",
-            ITEM: "Item Name"
+        // الرابط باستخدام CDN لتخطي CORS
+        const URL = 'https://cdn.jsdelivr.net/gh/BaselGhanem/Sales@main/Daily%20Sales%20Report.xlsx';
+        
+        let rawData = [];
+        let period = 'MTD';
+        let charts = {};
+
+        // محرك البحث التلقائي عن الأعمدة (Auto-Mapping)
+        const getCol = (row, keywords) => {
+            const keys = Object.keys(row);
+            return keys.find(k => keywords.some(kw => k.toLowerCase().includes(kw.toLowerCase()))) || keys[0];
         };
 
-        let allData = [];
-        let currentPeriod = 'MTD';
-        let charts = { sales: null, area: null };
-
-        // 1. التشغيل عند التحميل
-        window.addEventListener('DOMContentLoaded', async () => {
+        window.onload = async () => {
             try {
-                const response = await fetch(EXCEL_URL);
-                if (!response.ok) throw new Error("فشل تحميل الملف من GitHub");
+                // إضافة timestamp للرابط لمنع الكاش (التخزين المؤقت)
+                const finalUrl = `${URL}?t=${new Date().getTime()}`;
+                const res = await fetch(finalUrl);
+                if (!res.ok) throw new Error();
                 
-                const buffer = await response.arrayBuffer();
-                const workbook = XLSX.read(buffer, { type: 'array' });
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const ab = await res.arrayBuffer();
+                const wb = XLSX.read(ab, { type: 'array' });
+                rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 
-                // تحويل البيانات إلى JSON
-                allData = XLSX.utils.sheet_to_json(firstSheet, { raw: false }); // raw:false لقرائتها كنصوص أولاً لتفادي مشاكل التاريخ
-                
-                if (allData.length === 0) throw new Error("الملف فارغ");
-
-                populateRepList();
-                document.getElementById('loadingScreen').classList.add('opacity-0');
-                setTimeout(() => document.getElementById('loadingScreen').remove(), 500);
-                
-                // اختيار أول مندوب تلقائياً
-                const firstRep = document.getElementById('repSelect').options[0].value;
-                updateDashboard();
-
-            } catch (err) {
-                document.getElementById('loadingScreen').innerHTML = `
-                    <div class="text-center p-6 bg-red-50 rounded-xl border border-red-100">
-                        <p class="text-red-600 font-bold text-lg mb-2">خطأ في التحميل</p>
-                        <p class="text-red-500 text-sm">${err.message}</p>
+                init();
+            } catch (e) {
+                document.getElementById('loader').innerHTML = `
+                    <div class="text-center p-6">
+                        <p class="text-red-500 font-bold">فشل الاتصال بـ GitHub</p>
+                        <p class="text-xs text-gray-500 mt-2">تأكد من رفع الملف وجعله Public</p>
+                        <button onclick="location.reload()" class="mt-4 bg-primary text-white px-6 py-2 rounded-full">إعادة محاولة</button>
                     </div>`;
             }
-        });
+        };
 
-        // 2. تعبئة القائمة
-        function populateRepList() {
-            const reps = [...new Set(allData.map(d => d[COLS.REP]))].filter(Boolean).sort();
-            const select = document.getElementById('repSelect');
-            select.innerHTML = reps.map(r => `<option value="${r}">${r}</option>`).join('');
+        function init() {
+            document.getElementById('loader').style.display = 'none';
+            // البحث عن عمود المندوب (قد يكون Salesman أو Detailman Name)
+            const repCol = getCol(rawData[0], ['Salesman', 'Detailman', 'Salesrep']);
+            const reps = [...new Set(rawData.map(r => r[repCol]))].filter(Boolean).sort();
+            
+            const sel = document.getElementById('repSelector');
+            sel.innerHTML = reps.map(r => `<option value="${r}">${r}</option>`).join('');
+            
+            renderUI();
         }
 
-        // 3. تبديل الفترة الزمنية
-        window.switchPeriod = (period) => {
-            currentPeriod = period;
-            const btnMtd = document.getElementById('btn-mtd');
-            const btnYtd = document.getElementById('btn-ytd');
+        window.setPeriod = (p) => {
+            period = p;
+            document.getElementById('btn-mtd').className = p === 'MTD' ? 'px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-primary' : 'px-4 py-1 rounded-md text-sm font-bold text-gray-500';
+            document.getElementById('btn-ytd').className = p === 'YTD' ? 'px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-primary' : 'px-4 py-1 rounded-md text-sm font-bold text-gray-500';
+            renderUI();
+        };
+
+        function renderUI() {
+            const selectedRep = document.getElementById('repSelector').value;
+            const now = new Date();
             
-            if (period === 'MTD') {
-                btnMtd.className = "flex-1 px-6 py-2 rounded-lg text-sm font-bold transition-all shadow-sm bg-white text-brand";
-                btnYtd.className = "flex-1 px-6 py-2 rounded-lg text-sm font-bold text-slate-500 transition-all hover:text-slate-700";
-                document.getElementById('periodBadge').textContent = "تقرير الشهر الحالي";
-            } else {
-                btnMtd.className = "flex-1 px-6 py-2 rounded-lg text-sm font-bold text-slate-500 transition-all hover:text-slate-700";
-                btnYtd.className = "flex-1 px-6 py-2 rounded-lg text-sm font-bold transition-all shadow-sm bg-white text-brand";
-                document.getElementById('periodBadge').textContent = "تقرير السنة الحالية";
-            }
-            updateDashboard();
-        }
+            // تحديد أسماء الأعمدة ديناميكياً بناءً على ما أرسلته
+            const c = {
+                rep: getCol(rawData[0], ['Salesman', 'Detailman']),
+                date: getCol(rawData[0], ['Transaction Date', 'Date']),
+                sales: getCol(rawData[0], ['Sales', 'Value']),
+                qty: getCol(rawData[0], ['Net Goods', 'Goods Qty']),
+                item: getCol(rawData[0], ['Item Name', 'Description']),
+                area: getCol(rawData[0], ['Area Name']),
+                cust: getCol(rawData[0], ['Cust Name'])
+            };
 
-        // 4. معالجة التاريخ بذكاء
-        function parseDate(dateStr) {
-            // التعامل مع تنسيقات مختلفة
-            if (!dateStr) return null;
-            const d = new Date(dateStr);
-            if (!isNaN(d)) return d;
-            
-            // محاولة يدوية لـ DD/MM/YYYY
-            const parts = dateStr.split('/');
-            if (parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-            
-            return null;
-        }
-
-        // 5. تحديث اللوحة
-        window.updateDashboard = () => {
-            const selectedRep = document.getElementById('repSelect').value;
-            if (!selectedRep) return;
-
-            const now = new Date(); // التاريخ الحالي للجهاز
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth();
-
-            // الفلترة
-            const filtered = allData.filter(row => {
-                if (row[COLS.REP] !== selectedRep) return false;
-                
-                const rowDate = parseDate(row[COLS.DATE]);
-                if (!rowDate) return false;
-
-                const isSameYear = rowDate.getFullYear() === currentYear;
-                const isSameMonth = rowDate.getMonth() === currentMonth;
-
-                return currentPeriod === 'MTD' ? (isSameYear && isSameMonth) : isSameYear;
+            const filtered = rawData.filter(r => {
+                if (r[c.rep] !== selectedRep) return false;
+                const d = new Date(r[c.date]);
+                if (isNaN(d)) return false;
+                const sameYear = d.getFullYear() === now.getFullYear();
+                const sameMonth = d.getMonth() === now.getMonth();
+                return period === 'MTD' ? (sameYear && sameMonth) : sameYear;
             });
 
             // الحسابات
             let totalSales = 0, totalQty = 0;
-            let areas = {}, dates = {}, products = {}, customers = {};
+            const items = {}, areas = {}, daily = {}, customers = {};
 
-            filtered.forEach(row => {
-                // تنظيف الأرقام (إزالة الفواصل والنصوص)
-                const sales = parseFloat(String(row[COLS.SALES]).replace(/,/g, '')) || 0;
-                const qty = parseFloat(String(row[COLS.QTY]).replace(/,/g, '')) || 0;
+            filtered.forEach(r => {
+                const s = parseFloat(r[c.sales]) || 0;
+                const q = parseFloat(r[c.qty]) || 0;
+                const dateKey = r[c.date];
                 
-                totalSales += sales;
-                totalQty += qty;
-
-                // التجميع
-                areas[row[COLS.AREA]] = (areas[row[COLS.AREA]] || 0) + sales;
+                totalSales += s;
+                totalQty += q;
                 
-                const dateKey = row[COLS.DATE]; // استخدام النص الأصلي للعرض
-                dates[dateKey] = (dates[dateKey] || 0) + sales;
+                areas[r[c.area]] = (areas[r[c.area]] || 0) + s;
+                daily[dateKey] = (daily[dateKey] || 0) + s;
+                customers[r[c.cust]] = (customers[r[c.cust]] || 0) + s;
 
-                const prod = row[COLS.ITEM];
-                if (!products[prod]) products[prod] = { sales: 0, qty: 0 };
-                products[prod].sales += sales;
-                products[prod].qty += qty;
-
-                customers[row[COLS.CUST]] = (customers[row[COLS.CUST]] || 0) + sales;
+                if (!items[r[c.item]]) items[r[c.item]] = { q: 0, s: 0 };
+                items[r[c.item]].q += q;
+                items[r[c.item]].s += s;
             });
 
-            // تحديث الواجهة
-            document.getElementById('headerName').textContent = selectedRep;
-            document.getElementById('totalSales').textContent = totalSales.toLocaleString(undefined, { maximumFractionDigits: 0 });
-            document.getElementById('totalQty').textContent = totalQty.toLocaleString();
-            document.getElementById('invoiceCount').textContent = filtered.length;
+            // تحديث الأرقام
+            document.getElementById('stat-sales').innerText = Math.round(totalSales).toLocaleString();
+            document.getElementById('stat-qty').innerText = Math.round(totalQty).toLocaleString();
+            
+            const topArea = Object.entries(areas).sort((a,b) => b[1]-a[1])[0];
+            document.getElementById('stat-area').innerText = topArea ? topArea[0] : '--';
 
-            // أعلى منطقة وعميل
-            const topArea = Object.keys(areas).sort((a,b) => areas[b] - areas[a])[0] || 'لا يوجد';
-            document.getElementById('topAreaText').textContent = topArea;
+            const topCust = Object.entries(customers).sort((a,b) => b[1]-a[1])[0];
+            document.getElementById('stat-cust').innerText = topCust ? topCust[0] : '--';
 
-            const topCustEntry = Object.entries(customers).sort((a,b) => b[1] - a[1])[0];
-            document.getElementById('topCustomer').textContent = topCustEntry ? topCustEntry[0] : '--';
-            document.getElementById('topCustomerVal').textContent = topCustEntry ? Math.floor(topCustEntry[1]).toLocaleString() : '0';
+            // تحديث الجدول
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = Object.entries(items).sort((a,b) => b[1].s - a[1].s).map(([name, data]) => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-slate-600">${name}</td>
+                    <td class="p-3 text-center text-orange-600 font-bold">${Math.round(data.q)}</td>
+                    <td class="p-3 text-center text-primary font-bold">${Math.round(data.s).toLocaleString()}</td>
+                </tr>
+            `).join('');
+            document.getElementById('rowCount').innerText = Object.keys(items).length + " صنف";
 
             // الرسوم البيانية
-            updateCharts(dates, areas);
-            
-            // الجداول
-            renderTables(products, customers);
-        };
-
-        function updateCharts(dateMap, areaMap) {
-            // ترتيب التواريخ
-            const sortedDates = Object.keys(dateMap).sort((a,b) => parseDate(a) - parseDate(b));
-            
-            // Chart 1: Sales
-            if (charts.sales) charts.sales.destroy();
-            charts.sales = new Chart(document.getElementById('salesChart'), {
-                type: 'bar',
-                data: {
-                    labels: sortedDates,
-                    datasets: [{
-                        label: 'المبيعات',
-                        data: sortedDates.map(d => dateMap[d]),
-                        backgroundColor: '#2563eb',
-                        borderRadius: 6,
-                        barThickness: 'flex',
-                        maxBarThickness: 30
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { borderDash: [2, 4] } }, x: { grid: { display: false } } }
-                }
-            });
-
-            // Chart 2: Areas
-            if (charts.area) charts.area.destroy();
-            const areaLabels = Object.keys(areaMap);
-            charts.area = new Chart(document.getElementById('areaChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: areaLabels,
-                    datasets: [{
-                        data: Object.values(areaMap),
-                        backgroundColor: ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe'],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15 } } },
-                    cutout: '70%'
-                }
-            });
+            updateCharts(daily, areas);
         }
 
-        function renderTables(prodMap, custMap) {
-            // Products Table
-            const prodBody = document.getElementById('productsTable');
-            prodBody.innerHTML = Object.entries(prodMap)
-                .sort((a,b) => b[1].sales - a[1].sales)
-                .map(([name, data]) => `
-                    <tr class="group hover:bg-slate-50 transition">
-                        <td class="px-4 py-3 font-medium text-slate-700">${name}</td>
-                        <td class="px-4 py-3 text-center text-slate-500">${data.qty}</td>
-                        <td class="px-4 py-3 text-left font-bold text-brand">${Math.floor(data.sales).toLocaleString()}</td>
-                    </tr>
-                `).join('');
+        function updateCharts(daily, areas) {
+            if (charts.main) charts.main.destroy();
+            if (charts.pie) charts.pie.destroy();
 
-            // Customers Table
-            const custBody = document.getElementById('customersTable');
-            custBody.innerHTML = Object.entries(custMap)
-                .sort((a,b) => b[1] - a[1])
-                .map(([name, sales]) => `
-                    <tr class="group hover:bg-slate-50 transition">
-                        <td class="px-4 py-3 font-medium text-slate-700">${name}</td>
-                        <td class="px-4 py-3 text-left font-bold text-slate-600">${Math.floor(sales).toLocaleString()}</td>
-                    </tr>
-                `).join('');
+            const ctx1 = document.getElementById('mainChart').getContext('2d');
+            charts.main = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(daily),
+                    datasets: [{ label: 'المبيعات اليومية', data: Object.values(daily), borderColor: '#099999', backgroundColor: 'rgba(9,153,153,0.1)', fill: true, tension: 0.3 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+
+            const ctx2 = document.getElementById('pieChart').getContext('2d');
+            charts.pie = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(areas),
+                    datasets: [{ data: Object.values(areas), backgroundColor: ['#099999', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899'] }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+            });
         }
     </script>
 </body>
