@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام متابعة المبيعات الذكي</title>
+    <title>نظام متابعة المبيعات الذكي - المعدل</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -19,34 +19,26 @@
             }
         }
     </script>
-    <style>
-        .loading-shimmer {
-            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-        }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    </style>
 </head>
 <body class="bg-gray-50 text-slate-800">
 
     <div id="loader" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
         <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p class="mt-4 font-bold text-primary">جاري جلب بيانات المندوبين...</p>
-        <p class="text-xs text-gray-400 mt-2">Connecting to GitHub via jsDelivr</p>
+        <p class="mt-4 font-bold text-primary">جاري معالجة البيانات...</p>
     </div>
 
     <nav class="bg-white shadow-sm sticky top-0 z-40 p-4 border-b">
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-2">
                 <div class="p-2 bg-primary rounded-lg text-white font-bold">BG</div>
-                <h1 class="text-xl font-extrabold text-primary">لوحة مبيعات باسل غانم</h1>
+                <h1 class="text-xl font-extrabold text-primary">لوحة المبيعات</h1>
             </div>
             <div class="flex gap-2 w-full md:w-auto">
                 <select id="repSelector" onchange="renderUI()" class="flex-1 md:w-64 p-2 border rounded-lg bg-gray-50 font-bold focus:ring-2 focus:ring-primary outline-none"></select>
                 <div class="flex bg-gray-200 p-1 rounded-lg">
-                    <button onclick="setPeriod('MTD')" id="btn-mtd" class="px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-primary">MTD</button>
-                    <button onclick="setPeriod('YTD')" id="btn-ytd" class="px-4 py-1 rounded-md text-sm font-bold text-gray-500">YTD</button>
+                    <button onclick="setPeriod('MTD')" id="btn-mtd" class="px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-primary">الشهر الحالي</button>
+                    <button onclick="setPeriod('YTD')" id="btn-ytd" class="px-4 py-1 rounded-md text-sm font-bold text-gray-500">سنة كاملة</button>
+                    <button onclick="setPeriod('ALL')" id="btn-all" class="px-4 py-1 rounded-md text-sm font-bold text-gray-500">الكل</button>
                 </div>
             </div>
         </div>
@@ -59,7 +51,7 @@
                 <p id="stat-sales" class="text-xl font-black text-slate-700">0</p>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border-r-4 border-orange-500">
-                <p class="text-gray-400 text-xs font-bold">الكمية (Net Goods)</p>
+                <p class="text-gray-400 text-xs font-bold">الكمية المباعة</p>
                 <p id="stat-qty" class="text-xl font-black text-slate-700">0</p>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border-r-4 border-blue-500">
@@ -92,7 +84,7 @@
                 <table class="w-full text-right text-sm">
                     <thead class="bg-gray-100 sticky top-0">
                         <tr>
-                            <th class="p-3">اسم الصنف (Item Name)</th>
+                            <th class="p-3">اسم الصنف</th>
                             <th class="p-3 text-center">الكمية</th>
                             <th class="p-3 text-center">المبيعات</th>
                         </tr>
@@ -104,57 +96,85 @@
     </main>
 
     <script>
-        // الرابط باستخدام CDN لتخطي CORS
         const URL = 'https://baselghanem.github.io/Sales/Daily%20Sales%20Report.xlsx';
         
         let rawData = [];
         let period = 'MTD';
         let charts = {};
 
-        // محرك البحث التلقائي عن الأعمدة (Auto-Mapping)
+        // Helper to normalize strings for comparison (removes spaces/case sensitivity)
+        const normalize = (str) => str ? str.toString().toLowerCase().trim() : '';
+
+        // Helper to find column name loosely
         const getCol = (row, keywords) => {
+            if (!row) return null;
             const keys = Object.keys(row);
-            return keys.find(k => keywords.some(kw => k.toLowerCase().includes(kw.toLowerCase()))) || keys[0];
+            return keys.find(k => keywords.some(kw => normalize(k).includes(normalize(kw)))) || keys[0];
+        };
+
+        // Helper to clean numbers (remove commas, handle strings)
+        const cleanNum = (val) => {
+            if (typeof val === 'number') return val;
+            if (!val) return 0;
+            return parseFloat(val.toString().replace(/,/g, '')) || 0;
         };
 
         window.onload = async () => {
             try {
-                // إضافة timestamp للرابط لمنع الكاش (التخزين المؤقت)
                 const finalUrl = `${URL}?t=${new Date().getTime()}`;
                 const res = await fetch(finalUrl);
-                if (!res.ok) throw new Error();
+                if (!res.ok) throw new Error('Network response was not ok');
                 
                 const ab = await res.arrayBuffer();
                 const wb = XLSX.read(ab, { type: 'array' });
-                rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 
+                // التعديل الأهم هنا: cellDates: true
+                rawData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { 
+                    cellDates: true,
+                    defval: "" 
+                });
+                
+                if (rawData.length === 0) throw new Error('الملف فارغ');
+
                 init();
             } catch (e) {
+                console.error(e);
                 document.getElementById('loader').innerHTML = `
                     <div class="text-center p-6">
-                        <p class="text-red-500 font-bold">فشل الاتصال بـ GitHub</p>
-                        <p class="text-xs text-gray-500 mt-2">تأكد من رفع الملف وجعله Public</p>
-                        <button onclick="location.reload()" class="mt-4 bg-primary text-white px-6 py-2 rounded-full">إعادة محاولة</button>
+                        <p class="text-red-500 font-bold">خطأ في تحميل البيانات</p>
+                        <p class="text-xs text-gray-500 mt-2">${e.message}</p>
+                        <button onclick="location.reload()" class="mt-4 bg-primary text-white px-6 py-2 rounded-full">تحديث الصفحة</button>
                     </div>`;
             }
         };
 
         function init() {
             document.getElementById('loader').style.display = 'none';
-            // البحث عن عمود المندوب (قد يكون Salesman أو Detailman Name)
-            const repCol = getCol(rawData[0], ['Salesman', 'Detailman', 'Salesrep']);
-            const reps = [...new Set(rawData.map(r => r[repCol]))].filter(Boolean).sort();
+            
+            const repCol = getCol(rawData[0], ['Salesman', 'Detailman', 'Salesrep', 'Rep']);
+            
+            // Extract unique reps
+            const reps = [...new Set(rawData.map(r => r[repCol]))].filter(r => r && r.toString().trim() !== '').sort();
             
             const sel = document.getElementById('repSelector');
-            sel.innerHTML = reps.map(r => `<option value="${r}">${r}</option>`).join('');
             
-            renderUI();
+            if (reps.length > 0) {
+                sel.innerHTML = reps.map(r => `<option value="${r}">${r}</option>`).join('');
+                renderUI();
+            } else {
+                alert('لم يتم العثور على أسماء مندوبين في الملف!');
+            }
         }
 
         window.setPeriod = (p) => {
             period = p;
-            document.getElementById('btn-mtd').className = p === 'MTD' ? 'px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-primary' : 'px-4 py-1 rounded-md text-sm font-bold text-gray-500';
-            document.getElementById('btn-ytd').className = p === 'YTD' ? 'px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-primary' : 'px-4 py-1 rounded-md text-sm font-bold text-gray-500';
+            ['mtd', 'ytd', 'all'].forEach(id => {
+                const btn = document.getElementById(`btn-${id}`);
+                const isActive = id.toUpperCase() === p;
+                btn.className = isActive 
+                    ? 'px-4 py-1 rounded-md text-sm font-bold bg-white shadow-sm text-primary' 
+                    : 'px-4 py-1 rounded-md text-sm font-bold text-gray-500';
+            });
             renderUI();
         };
 
@@ -162,48 +182,65 @@
             const selectedRep = document.getElementById('repSelector').value;
             const now = new Date();
             
-            // تحديد أسماء الأعمدة ديناميكياً بناءً على ما أرسلته
+            // Column Mapping
             const c = {
                 rep: getCol(rawData[0], ['Salesman', 'Detailman']),
-                date: getCol(rawData[0], ['Transaction Date', 'Date']),
-                sales: getCol(rawData[0], ['Sales', 'Value']),
-                qty: getCol(rawData[0], ['Net Goods', 'Goods Qty']),
-                item: getCol(rawData[0], ['Item Name', 'Description']),
-                area: getCol(rawData[0], ['Area Name']),
-                cust: getCol(rawData[0], ['Cust Name'])
+                date: getCol(rawData[0], ['Transaction Date', 'Date', 'Inv Date']),
+                sales: getCol(rawData[0], ['Sales', 'Value', 'Amount', 'Net Sales']),
+                qty: getCol(rawData[0], ['Net Goods', 'Goods Qty', 'Quantity', 'Qty']),
+                item: getCol(rawData[0], ['Item Name', 'Description', 'Product']),
+                area: getCol(rawData[0], ['Area Name', 'Region']),
+                cust: getCol(rawData[0], ['Cust Name', 'Customer'])
             };
 
             const filtered = rawData.filter(r => {
-                if (r[c.rep] !== selectedRep) return false;
-                const d = new Date(r[c.date]);
-                if (isNaN(d)) return false;
+                // Filter by Rep
+                if (r[c.rep] != selectedRep) return false;
+
+                // Handle Date
+                let d = r[c.date];
+                // If it's not a date object try to parse it
+                if (!(d instanceof Date)) d = new Date(d);
+                if (isNaN(d)) return false; 
+
+                if (period === 'ALL') return true;
+
                 const sameYear = d.getFullYear() === now.getFullYear();
                 const sameMonth = d.getMonth() === now.getMonth();
+                
                 return period === 'MTD' ? (sameYear && sameMonth) : sameYear;
             });
 
-            // الحسابات
+            // --- Calculations ---
             let totalSales = 0, totalQty = 0;
             const items = {}, areas = {}, daily = {}, customers = {};
 
             filtered.forEach(r => {
-                const s = parseFloat(r[c.sales]) || 0;
-                const q = parseFloat(r[c.qty]) || 0;
-                const dateKey = r[c.date];
+                const s = cleanNum(r[c.sales]);
+                const q = cleanNum(r[c.qty]);
+                
+                // Format date for chart (DD/MM)
+                let d = r[c.date] instanceof Date ? r[c.date] : new Date(r[c.date]);
+                const dateKey = `${d.getDate()}/${d.getMonth()+1}`;
                 
                 totalSales += s;
                 totalQty += q;
                 
-                areas[r[c.area]] = (areas[r[c.area]] || 0) + s;
-                daily[dateKey] = (daily[dateKey] || 0) + s;
-                customers[r[c.cust]] = (customers[r[c.cust]] || 0) + s;
+                // Safe grouping
+                const areaName = r[c.area] || 'غير محدد';
+                const custName = r[c.cust] || 'غير محدد';
+                const itemName = r[c.item] || 'غير محدد';
 
-                if (!items[r[c.item]]) items[r[c.item]] = { q: 0, s: 0 };
-                items[r[c.item]].q += q;
-                items[r[c.item]].s += s;
+                areas[areaName] = (areas[areaName] || 0) + s;
+                daily[dateKey] = (daily[dateKey] || 0) + s;
+                customers[custName] = (customers[custName] || 0) + s;
+
+                if (!items[itemName]) items[itemName] = { q: 0, s: 0 };
+                items[itemName].q += q;
+                items[itemName].s += s;
             });
 
-            // تحديث الأرقام
+            // Update DOM
             document.getElementById('stat-sales').innerText = Math.round(totalSales).toLocaleString();
             document.getElementById('stat-qty').innerText = Math.round(totalQty).toLocaleString();
             
@@ -213,22 +250,27 @@
             const topCust = Object.entries(customers).sort((a,b) => b[1]-a[1])[0];
             document.getElementById('stat-cust').innerText = topCust ? topCust[0] : '--';
 
-            // تحديث الجدول
+            // Table
             const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = Object.entries(items).sort((a,b) => b[1].s - a[1].s).map(([name, data]) => `
-                <tr class="hover:bg-gray-50">
+            tbody.innerHTML = Object.entries(items)
+                .sort((a,b) => b[1].s - a[1].s)
+                .map(([name, data]) => `
+                <tr class="hover:bg-gray-50 border-b last:border-0">
                     <td class="p-3 font-bold text-slate-600">${name}</td>
-                    <td class="p-3 text-center text-orange-600 font-bold">${Math.round(data.q)}</td>
-                    <td class="p-3 text-center text-primary font-bold">${Math.round(data.s).toLocaleString()}</td>
+                    <td class="p-3 text-center text-orange-600 font-bold" dir="ltr">${Math.round(data.q)}</td>
+                    <td class="p-3 text-center text-primary font-bold" dir="ltr">${Math.round(data.s).toLocaleString()}</td>
                 </tr>
             `).join('');
             document.getElementById('rowCount').innerText = Object.keys(items).length + " صنف";
 
-            // الرسوم البيانية
             updateCharts(daily, areas);
         }
 
         function updateCharts(daily, areas) {
+            // Sort daily data chronologically
+            // Note: Simplistic sort for DD/MM strings works if in same year, 
+            // for robustness strictly dealing with Date objects in sorting is better but this suffices for UI
+            
             if (charts.main) charts.main.destroy();
             if (charts.pie) charts.pie.destroy();
 
@@ -237,9 +279,22 @@
                 type: 'line',
                 data: {
                     labels: Object.keys(daily),
-                    datasets: [{ label: 'المبيعات اليومية', data: Object.values(daily), borderColor: '#099999', backgroundColor: 'rgba(9,153,153,0.1)', fill: true, tension: 0.3 }]
+                    datasets: [{ 
+                        label: 'المبيعات', 
+                        data: Object.values(daily), 
+                        borderColor: '#099999', 
+                        backgroundColor: 'rgba(9,153,153,0.1)', 
+                        fill: true, 
+                        tension: 0.3,
+                        pointRadius: 4 
+                    }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
             });
 
             const ctx2 = document.getElementById('pieChart').getContext('2d');
@@ -247,9 +302,16 @@
                 type: 'doughnut',
                 data: {
                     labels: Object.keys(areas),
-                    datasets: [{ data: Object.values(areas), backgroundColor: ['#099999', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899'] }]
+                    datasets: [{ 
+                        data: Object.values(areas), 
+                        backgroundColor: ['#099999', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'] 
+                    }]
                 },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } } } 
+                }
             });
         }
     </script>
